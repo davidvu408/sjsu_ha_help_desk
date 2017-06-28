@@ -1,12 +1,31 @@
+// Bookmark: Integrate time caluclation feature || Why 2 dialog messages keep popping up
+// This script requires the following triggers: 
+           // 1) onEdit() - From spreadsheet -> On edit 
+           // 2) formSubmitReply() -> From spreadsheet -> On form submit
+           // 3) onOpen() -> From spreadsheet -> On open
 var colorWhite = "#FFFFFF"; 
 var colorGrey = "#CCCCCC";
 var colorRed = "#F00";
-var ui = SpreadsheetApp.getUi(); 
 var sheet= SpreadsheetApp.getActiveSheet();
 var marketingEmail = "ha-marketing@sjsu.edu";
 var directorEmail = "sheryl.spann@sjsu.edu";
-var sheetID = "12jMvP6nD9chPQN14uJU2i608MWntCw57jdvtEQLN5c0";
+var sheetID = "1GzTILJ8iXWr-NobHCnMRgNCSb_0s3n43ScpZ4QkcD-s";
 var sheetLink = "https://docs.google.com/a/sjsu.edu/spreadsheets/d/" + sheetID + "/edit?usp=sharing";
+
+/*
+* @Override
+* Runs when spreadsheet opens
+*
+*/
+function onOpen() {
+  var subMenu = [{name:"Delete all responses", functionName: "deleteResponses"}];
+  SpreadsheetApp.getActiveSpreadsheet().addMenu("More", subMenu);
+  
+}
+
+function deleteResponses(){
+  SpreadsheetApp.getUi().alert("OK");
+}
 
 /*
 * @Override
@@ -29,8 +48,8 @@ function resetStatusColor(e) {
   var statusColumnIndex = getColIndexByName("Status", sheet); // Column index for "Status"
    // If the edited cell was in the status column
   if(e.range.getColumn() == statusColumnIndex){
-    // If New, In Progress then turn that column white (Not 'Resolved')
-      if(e.range.getValue() == "New" || e.range.getValue() == "In Progress"){
+    // If New or In Progress then turn that column white 
+      if(e.range.getValue() == "New"){
         sheet.getRange(e.range.getRow(), 1,1,sheet.getLastColumn()).setBackground(colorWhite); // Changes ticket row to White
     } 
   }
@@ -39,10 +58,8 @@ function resetStatusColor(e) {
 // Set ticket's rows that are "Resolved" to Grey #CCCCCC and sends email to client notifying them that their ticket has been resolved
 function darkenResolvedTickets(e) {
   var statusColumnIndex = getColIndexByName("Status", sheet); // Column index for "Status"
-  // If the edit was in the "Status" column
-  if(e.range.getColumn() == statusColumnIndex){
-    // If the status was set to Resolved in that column
-    if(e.range.getValue() == "Resolved"){
+  // If the edit was in the "Status" column and value is "Resolved"
+  if(e.range.getColumn() == statusColumnIndex && e.range.getValue() == "Resolved"){
        var row = e.range.getRow();
        var assignedEmployee = sheet.getRange(row, getColIndexByName("Assigned", sheet)).getValue();
        var assignedEmail = getEmployeeEmail(assignedEmployee);
@@ -64,12 +81,13 @@ function darkenResolvedTickets(e) {
        var issue = sheet.getRange(row, getColIndexByName(id + " Project Description", sheet)).getValue();  
       
      
-       var response = ui.prompt("Confirm", 
+       var response = SpreadsheetApp.getUi().prompt("Confirm", 
                                "This ticket has been resolved " + client + " (" + clientEmail + ")" +
-                               " will recieve a notification email. Any personal notes?", ui.ButtonSet.OK_CANCEL);
+                               " will recieve a notification email. Any personal notes?", 
+                               SpreadsheetApp.getUi().ButtonSet.OK_CANCEL);
       var buttonClicked = response.getSelectedButton();
       var employeeNotes = response.getResponseText();
-      if(buttonClicked == ui.Button.OK) {
+      if(buttonClicked == SpreadsheetApp.getUi().Button.OK) {
         sheet.getRange(e.range.getRow(), 1,1,sheet.getLastColumn()).setBackground(colorGrey); // Changes ticket (now resolved) row to Grey
         MailApp.sendEmail(clientEmail,
                          "HA Marketing Help Desk Ticket #" + row,
@@ -80,20 +98,32 @@ function darkenResolvedTickets(e) {
                           "Replying to this email will go to: " + assignedEmployee + "\n\n" +
                           "-H&A Marketing Team",
                           {name: "H&A Help Desk", replyTo: assignedEmail});
-        
      } // End if "OK" button
-    } // End if ""Resolved"
   } // End if "Status" column
 } /// End darkenResolvedTickets()
+
+function collectTime(){
+  var focus = "Web";
+  var department = "Music and Dance";
+  var timeData = SpreadsheetApp.openById(sheetID).getSheetByName("Time Data"); // Time Data Sheet
+  for(var i = 1; i <= timeData.getLastRow(); i++){
+    var current = timeData.getRange(i,1).getValue();
+    if(current == focus){
+      Logger.log("FOCUS: " + current);
+    } 
+  }
+  // get Focus cell
+  // get department cell
+  // add to corresponding cell
+}
+
 
 // Set ticket's "Assigned" cell to red until it is filled
 function changeAssignedCellBackground(e){
   var statusColumnIndex = getColIndexByName("Status", sheet); // Column index for "Status"
   // If the edited cell was in the status column
-  if(e.range.getColumn() == statusColumnIndex){
-    if(e.range.getValue() == "Assigned"){
+  if(e.range.getColumn() == statusColumnIndex && e.range.getValue() == "Assigned"){
       sheet.getRange(e.range.getRow(), getColIndexByName("Assigned", sheet)).setBackground(colorRed); // Turns "Assigned" cell to the right red
-    }
   }
 }
 
@@ -110,12 +140,12 @@ function assignedEmailStatusUpdate(e) {
   // If edited cell was in "Assigned" column
   if(e.range.getColumn() == assignedColumnIndex) {
     // Render a dialog message confirming the email update to be sent to the assigned employee
-    var response = ui.alert(
+    var response = SpreadsheetApp.getUi().alert(
           'Confirm',
           assignedEmail + ' will recieve a confirmation email that he has been assigned to this ticket.',
-          ui.ButtonSet.OK_CANCEL);
+          SpreadsheetApp.getUi().ButtonSet.OK_CANCEL);
        
-    if(response == ui.Button.OK){
+    if(response == SpreadsheetApp.getUi().Button.OK){
       sheet.getRange(row, assignedColumnIndex).setBackground("#FFFFFF");
         // Finds issue description according to "Project Marketing Focus"
       var id = "";
@@ -139,8 +169,9 @@ function assignedEmailStatusUpdate(e) {
                         "You have been assigned to a ticket via the H&A Help Desk ticketing system\n"+
                         "Client: " + client + " (" + clientEmail + ")\n"+
                         "Issue Description: " + issue + "\n"+
-                        "You can view this at: " + sheetLink+"\n\n"+
-                        "Replying to this email will go to " + client,
+                        "You can view this at: " + sheetLink+"\n"+
+                        "Replying to this email will go to: " + client + "\n\n" +
+                        "-H&A Marketing Team",
                         {name:"H&A Help Desk", replyTo: clientEmail});  
       
       // Notify client that ticket has been assigned to an employee
@@ -149,18 +180,22 @@ function assignedEmailStatusUpdate(e) {
                         client + ",\n\n" +
                         "The status of your ticket is currently: Assigned\n"+ 
                         "You are assigned to: " + assignedEmployee +", "+assignedEmail +"\n"+
-                        "Issue Description: " + issue +"\n\n"+
-                        "Replying to this email will go to " + assignedEmail+"\n\n",
+                        "Issue Description: " + issue +"\n"+
+                        "Replying to this email will go to: " + assignedEmail+"\n\n"+
+                        "-H&A Marketing Team",
                         {name:"H&A Help Desk", replyTo: assignedEmail});
       } // end if Button OK 
     
 
-  } else if (e.range.getColumn() == statusColumnIndex && e.range.getValue() == "In Progress") {
-    var response = ui.alert(
+  } 
+  // "In-Progress" has been discontinued
+  /**
+  else if (e.range.getColumn() == statusColumnIndex && e.range.getValue() == "In Progress") {
+    var response = SpreadsheetApp.getUi().alert(
           'Confirm',
           client + " (" + clientEmail + ")" + " will recieve a confirmation email that his ticket is in the process of being resolved.",
-          ui.ButtonSet.OK_CANCEL);
-    if(response == ui.Button.OK) {
+          SpreadsheetApp.getUi().ButtonSet.OK_CANCEL);
+    if(response == SpreadsheetApp.getUi().Button.OK) {
       // Notify client that their ticket is in the process of being resolved
       MailApp.sendEmail(clientEmail,
                         "HA Marketing Help Desk Ticket #" + row,
@@ -168,11 +203,14 @@ function assignedEmailStatusUpdate(e) {
                         "The status of your ticket is currently: In Progress\n" + 
                         assignedEmployee + " is assigned to this ticket\n" +
                         "Issue Description: " + issue +"\n"+
-                        "Replying to this email will go to " + assignedEmployee +"\n\n",
+                        "Replying to this email will go to: " + assignedEmail + "\n\n"+
+                        "-H&A Marketing Team",
                         {name:"H&A Help Desk", replyTo: assignedEmail});
     } // end if Button OK
   } // end if/else-if 
+  **/
 }
+
 
 /**
 *  Event function - Will run when client submits form
@@ -198,28 +236,34 @@ function formSubmitReply(e) {
                     "-H&A Marketing Team",
                     {name:"H&A Help Desk", replyTo: marketingEmail});
   
-  // Sends confirmation email to H&A Marketing Team
+  // Finds email target
   var id = "";
   var body = "A new ticket has been submitted through the Help Desk Ticketing System.\n\nYou can view this at " + sheetLink + "\n\n";
-  if(e.namedValues["Focus"] == "Web"){
-    id = "#web";
-  }else if(e.namedValues["Focus"] == "Graphic Design"){
-    id = "#graphic";
-  }else if(e.namedValues["Focus"] == "Media (Photo/Video)"){
-    id = "#media";
-  }else if(e.namedValues["Focus"] == "Editorial and Content Development"){
-    id = "#edit";
-  }else if(e.namedValues["Focus"] == "Digital and Database Marketing Projects"){
+  if(e.namedValues["Project Marketing Focus"] == "Web"){
+    id += "Website";
+  }else if(e.namedValues["Project Marketing Focus"] == "Graphic Design"){
+    id += "Graphic";
+  }else if(e.namedValues["Project Marketing Focus"] == "Media (Photo/Video)"){
+    id += "Photo+Video";
+  }else if(e.namedValues["Project Marketing Focus"] == "Editorial and Content Development"){
+    id += "Editing";
+  }else if(e.namedValues["Project Marketing Focus Focus"] == "Digital and Database Marketing Projects"){
     MailApp.sendEmail(directorEmail, 
                       "Help Desk New Ticket #" + lastRow,
-                      body,
+                      body + "\n\n" + "-H&A Marketing Team",
                       {name:"H&A Help Desk"});
   }
-  body += id;
   
-  MailApp.sendEmail(marketingEmail,
+  // Sends confirmation email to H&A Marketing Team shared inbox
+  MailApp.sendEmail("ha-marketing" + "+" + id + "@sjsu.edu",
                     "Help Desk New Ticket #" + lastRow,
-                    body,
+                    body + "\n\n" + "-H&A Marketing Team",
+                    {name:"H&A Help Desk"});
+  
+  // Sends confirmation email to Marketing Director
+  MailApp.sendEmail(directorEmail,
+                    "Help Desk New Ticket #" + lastRow,
+                    body + "\n\n" + "-H&A Marketing Team",
                     {name:"H&A Help Desk"});
                     
 }
